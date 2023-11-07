@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 
-
 interface Card {
   name: string;
   link: string;
@@ -9,15 +8,14 @@ interface Card {
   createdAt: Date;
 }
 
-
 const cardSchema = new mongoose.Schema<Card>({
-  name: { type: String, required: true, minlength: 2, maxlength: 30 },
+  name: {
+    type: String, required: true, minlength: 2, maxlength: 30,
+  },
   link: { type: String, required: true },
-  owner: { type: mongoose.Schema.Types.ObjectId, required: true },
-  likes: { type: [mongoose.Schema.Types.ObjectId], default: [] },
-  createdAt: { type: Date, default: Date.now }
+  owner: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
+  likes: { type: [mongoose.Schema.Types.ObjectId], default: [], ref: 'User' },
+  createdAt: { type: Date, default: Date.now },
 });
 
-
 export default mongoose.model<Card>('card', cardSchema);
-

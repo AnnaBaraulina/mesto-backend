@@ -1,5 +1,7 @@
 import express from 'express';
-import { getCards, createCard, deleteCard, likeCard, dislikeCard } from '../controllers/card';
+import {
+  getCards, createCard, deleteCard, likeCard, dislikeCard,
+} from '../controllers/card';
 
 const router = express.Router();
 
@@ -10,4 +12,3 @@ router.put('/cards/:cardId/likes', likeCard);
 router.delete('/cards/:cardId/likes', dislikeCard);
 
 export default router;
-
