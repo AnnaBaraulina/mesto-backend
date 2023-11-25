@@ -16,41 +16,33 @@ const {
   HTTP_STATUS_CONFLICT
 } = constants;
 
-const getUsers = async (req: Request, res: Response) => {
-  /* eslint consistent-return: "off" */
+const getUsers = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const users = await User.find({});
     res.send(users);
   } catch (error) {
-    res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Ошибка по умолчанию' });
-    return null;
+    next(error);
   }
 };
 
-const getUserById = async (req: Request, res: Response) => {
-  /* eslint consistent-return: "off" */
+const getUserById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) {
-      return res.status(HTTP_STATUS_NOT_FOUND).send({
-        message: 'Пользователь по указанному _id не найден.',
-      });
+
+      const notFoundError = new Error('Пользователь по указанному _id не найден.');
+      (notFoundError as any).status = HTTP_STATUS_NOT_FOUND;
+      return next(notFoundError);
     }
-    const {
-      name, about, avatar, _id,
-    } = user;
-    res.send({
-      name, about, avatar, _id,
-    });
+    const { name, about, avatar, _id } = user;
+    res.send({ name, about, avatar, _id });
   } catch (error) {
-    if (error instanceof mongoose.Error.CastError) {
-      return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Некорректный ID пользователя.' });
-    }
-    res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла неизвестная ошибка' });
+    next(error);
   }
 };
 
-const createUser = (req: Request, res: Response) => {
+
+const createUser = (req: Request, res: Response, next: NextFunction) => {
   const { password, email, name, about, avatar } = req.body;
 
   bcrypt.hash(password, 10)
@@ -73,45 +65,37 @@ const createUser = (req: Request, res: Response) => {
       });
     })
     .catch(err => {
-      if (err instanceof mongoose.Error.ValidationError) {
-        res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные.' });
-      } else if (err.code === 11000) {
-        res.status(HTTP_STATUS_CONFLICT).send({ message: 'Пользователь с таким email уже существует.' });
-      } else {
-        res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла неизвестная ошибка' });
-      }
+
+      next(err);
     });
 };
 
-export const login = (req: Request, res: Response) => {
+export const login = (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
 
   User.findOne({ email }).select('+password')
     .then(user => {
       if (!user) {
-        res.status(401).send({ message: 'Неправильные почта или пароль' });
-        return;
+        return res.status(401).send({ message: 'Неправильные почта или пароль' });
       }
 
       bcrypt.compare(password, user.password)
         .then(matched => {
           if (!matched) {
-            res.status(401).send({ message: 'Неправильные почта или пароль' });
-            return;
+            return res.status(401).send({ message: 'Неправильные почта или пароль' });
           }
 
           const token = jwt.sign({ _id: user._id }, DEFAULT_KEY, { expiresIn: '7d' });
           res.send({ token, name: user.name, email: user.email });
-        });
+        })
+        .catch(next);
     })
-    .catch(err => {
-      res.status(500).send({ message: 'Ошибка на сервере' });
-    });
+    .catch(next);
 };
 
-const getCurrentUser = async (req: CustomRequest, res: Response) => {
+const getCurrentUser = async (req: CustomRequest, res: Response, next: NextFunction) => {
   try {
-   if (!req.user || !req.user._id) {
+    if (!req.user || !req.user._id) {
       return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Не удалось идентифицировать пользователя.' });
     }
 
@@ -123,12 +107,12 @@ const getCurrentUser = async (req: CustomRequest, res: Response) => {
     const { name, email, about, avatar, _id } = user;
     res.send({ _id, name, email, about, avatar });
   } catch (error) {
-    res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Ошибка на сервере' });
+    next(error);
   }
 };
 
 
-const updateUser = async (req: CustomRequest, res: Response) => {
+const updateUser = async (req: CustomRequest, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?._id;
     const user = await User.findByIdAndUpdate(userId, req.body, { new: true, runValidators: true });
@@ -137,27 +121,19 @@ const updateUser = async (req: CustomRequest, res: Response) => {
     }
     res.send(user);
   } catch (error) {
-    if (error instanceof mongoose.Error.ValidationError) {
-      return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные при обновлении профиля.' });
-    }
-    res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Ошибка по умолчанию' });
+    next(error);
   }
 };
-
-const updateAvatar = async (req: CustomRequest, res: Response) => {
+const updateAvatar = async (req: CustomRequest, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?._id;
-    const user = await User.findByIdAndUpdate(userId, { avatar: req.body.avatar }, {
-      new: true, runValidators: true,
-    });
+    const user = await User.findByIdAndUpdate(userId, { avatar: req.body.avatar }, { new: true, runValidators: true });
     if (!user) {
       return res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Пользователь не найден' });
     }
     res.send(user);
   } catch (error) {
-    if (error instanceof mongoose.Error.ValidationError) {
-      return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные при обновлении аватара.' });
-    }
+    next(error);
   }
 };
 

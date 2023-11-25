@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { NextFunction} from 'express';
 import mongoose from 'mongoose';
 import morgan from 'morgan';
 import winston from 'winston';
@@ -7,7 +7,14 @@ import userRoutes from './routes/user';
 import cardRoutes from './routes/card';
 import { createUser, login } from './controllers/user';
 import authMiddleware from './middlewares/auth';
+import { constants } from 'http2';
 
+const {
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_CONFLICT,
+  HTTP_STATUS_UNAUTHORIZED
+} = constants;
 
 const app = express();
 const port = 3000;
@@ -66,9 +73,18 @@ app.use((req, res) => {
   res.status(404).send('404 Not Found: The requested resource was not found on this server.');
 });
 
-app.use((err: Error, req: CustomRequest, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, req: CustomRequest, res: express.Response, next: express.NextFunction) => {
   errorLogger.error(`Error: ${err.message}`);
-  res.status(500).send('Internal Server Error');
+
+  if (err instanceof mongoose.Error.ValidationError) {
+    res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные.' });
+  } else if (err.code === 11000) {
+    res.status(HTTP_STATUS_CONFLICT).send({ message: 'Пользователь с таким email уже существует.' });
+  } else if (err.name === 'UnauthorizedError') { // Пример проверки ошибки авторизации
+    res.status(HTTP_STATUS_UNAUTHORIZED).send({ message: 'Некорректный токен.' });
+  } else {
+    res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла неизвестная ошибка' });
+  }
 });
 
 
