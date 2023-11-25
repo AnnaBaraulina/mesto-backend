@@ -1,14 +1,19 @@
 import mongoose from 'mongoose';
 import type { CustomRequest } from 'types/types';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { constants } from 'http2';
 import User from '../models/user';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { DEFAULT_KEY } from '../config';
+
 
 const {
   HTTP_STATUS_CREATED,
   HTTP_STATUS_BAD_REQUEST,
   HTTP_STATUS_NOT_FOUND,
   HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_CONFLICT
 } = constants;
 
 const getUsers = async (req: Request, res: Response) => {
@@ -45,19 +50,83 @@ const getUserById = async (req: Request, res: Response) => {
   }
 };
 
-const createUser = async (req: Request, res: Response) => {
-  /* eslint consistent-return: "off" */
+const createUser = (req: Request, res: Response) => {
+  const { password, email, name, about, avatar } = req.body;
+
+  bcrypt.hash(password, 10)
+    .then(hashedPassword => {
+      return User.create({
+        email,
+        password: hashedPassword,
+        name,
+        about,
+        avatar
+      });
+    })
+    .then(user => {
+      res.status(HTTP_STATUS_CREATED).send({
+        _id: user._id,
+        name: user.name,
+        about: user.about,
+        avatar: user.avatar,
+        email: user.email,
+      });
+    })
+    .catch(err => {
+      if (err instanceof mongoose.Error.ValidationError) {
+        res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные.' });
+      } else if (err.code === 11000) {
+        res.status(HTTP_STATUS_CONFLICT).send({ message: 'Пользователь с таким email уже существует.' });
+      } else {
+        res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла неизвестная ошибка' });
+      }
+    });
+};
+
+export const login = (req: Request, res: Response) => {
+  const { email, password } = req.body;
+
+  User.findOne({ email }).select('+password')
+    .then(user => {
+      if (!user) {
+        res.status(401).send({ message: 'Неправильные почта или пароль' });
+        return;
+      }
+
+      bcrypt.compare(password, user.password)
+        .then(matched => {
+          if (!matched) {
+            res.status(401).send({ message: 'Неправильные почта или пароль' });
+            return;
+          }
+
+          const token = jwt.sign({ _id: user._id }, DEFAULT_KEY, { expiresIn: '7d' });
+          res.send({ token, name: user.name, email: user.email });
+        });
+    })
+    .catch(err => {
+      res.status(500).send({ message: 'Ошибка на сервере' });
+    });
+};
+
+const getCurrentUser = async (req: CustomRequest, res: Response) => {
   try {
-    const newUser = new User(req.body);
-    await newUser.save();
-    res.status(HTTP_STATUS_CREATED).send(newUser);
-  } catch (error) {
-    if (error instanceof mongoose.Error.ValidationError) {
-      return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные.' });
+   if (!req.user || !req.user._id) {
+      return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Не удалось идентифицировать пользователя.' });
     }
-    res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла неизвестная ошибка' });
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Пользователь не найден.' });
+    }
+
+    const { name, email, about, avatar, _id } = user;
+    res.send({ _id, name, email, about, avatar });
+  } catch (error) {
+    res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Ошибка на сервере' });
   }
 };
+
 
 const updateUser = async (req: CustomRequest, res: Response) => {
   try {
@@ -93,5 +162,5 @@ const updateAvatar = async (req: CustomRequest, res: Response) => {
 };
 
 export {
-  getUsers, getUserById, createUser, updateUser, updateAvatar,
+  getUsers, getUserById, createUser, updateUser, updateAvatar, getCurrentUser,
 };

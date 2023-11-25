@@ -9,6 +9,7 @@ const {
   HTTP_STATUS_BAD_REQUEST,
   HTTP_STATUS_NOT_FOUND,
   HTTP_STATUS_INTERNAL_SERVER_ERROR,
+  HTTP_STATUS_FORBIDDEN,
 } = constants;
 
 const getCards = async (req: Request, res: Response) => {
@@ -22,39 +23,49 @@ const getCards = async (req: Request, res: Response) => {
 };
 
 const createCard = async (req: CustomRequest, res: Response) => {
-  /* eslint consistent-return: "off" */
+  const { name, link } = req.body;
+  const owner = req.user?._id;
+
+  console.log('req.body:', req.body);
+  console.log('req.user?._id:', owner);
+
+  if (!owner) {
+    return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Ошибка авторизации: отсутствует идентификатор пользователя.' });
+  }
+
   try {
-    const card = new Card({
-      ...req.body,
-      owner: req.user?._id,
-    });
-    await card.save();
-    res.status(HTTP_STATUS_CREATED).send(card);
-  } catch (error) {
-    if (error instanceof mongoose.Error.ValidationError) {
-      res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные при создании карточки.' });
+    const card = await Card.create({ name, link, owner });
+    res.status(HTTP_STATUS_CREATED).send({ data: card });
+  } catch (err) {
+    console.log('Ошибка при создании карточки:', err);
+    if (err instanceof mongoose.Error.ValidationError) {
+      res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Некорректные данные при создании карточки' });
     } else {
-      res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Ошибка по умолчанию' });
+      res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Ошибка на сервере' });
     }
   }
 };
 
-const deleteCard = async (req: Request, res: Response) => {
-  /* eslint consistent-return: "off" */
+const deleteCard = async (req: CustomRequest, res: Response) => {
+  console.log('Delete Card Request:', req.params);
   try {
-    const card = await Card.findByIdAndRemove(req.params.cardId);
-    if (!card) {
-      return res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Карточка с указанным _id не найдена' });
+    const card = await Card.findById(req.params.cardId).orFail(() => new Error('Карточка с указанным _id не найдена'));
+
+
+    if (card.owner.toString() !== req.user?._id.toString()) {
+      return res.status(HTTP_STATUS_FORBIDDEN).send({ message: 'У вас нет прав для удаления этой карточки' });
     }
+
+    await card.deleteOne();
     res.send({ message: 'Карточка удалена' });
   } catch (error) {
+    console.log('Error in deleteCard:', error);
     if (error instanceof mongoose.Error.CastError) {
       return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Некорректный ID карточки.' });
     }
     res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла ошибка при удалении карточки' });
   }
 };
-
 const likeCard = async (req: CustomRequest, res: Response) => {
   /* eslint consistent-return: "off" */
   try {
@@ -98,5 +109,5 @@ const dislikeCard = async (req: CustomRequest, res: Response) => {
 };
 
 export {
-  getCards, createCard, deleteCard, likeCard, dislikeCard,
+  getCards, deleteCard, likeCard, dislikeCard, createCard,
 };

@@ -1,14 +1,14 @@
 import express from 'express';
 import {
-  getUsers, getUserById, createUser, updateAvatar, updateUser,
+  getUsers, getUserById, getCurrentUser, updateAvatar, updateUser,
 } from '../controllers/user';
 
 const router = express.Router();
 
-router.get('/users', getUsers);
-router.get('/users/:userId', getUserById);
-router.post('/users', createUser);
-router.patch('/users/me', updateUser);
-router.patch('/users/me/avatar', updateAvatar);
+router.get('/me', getCurrentUser);
+router.get('/:userId', getUserById);
+router.patch('/me', updateUser);
+router.patch('/me/avatar', updateAvatar);
+router.get('/', getUsers);
 
 export default router;
