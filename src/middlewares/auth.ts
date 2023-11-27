@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt, { JwtPayload } from 'jsonwebtoken';
+import jwt, { JwtPayload, verify } from 'jsonwebtoken';
 import { DEFAULT_KEY } from '../config';
 
 class UnauthorizedError extends Error {
@@ -11,8 +11,12 @@ class UnauthorizedError extends Error {
   }
 }
 
+export interface IUserPayload extends JwtPayload {
+  _id: string;
+}
+
 interface IAuthReq extends Request {
-  user?: string | JwtPayload;
+  user?: IUserPayload;
 }
 
 export default (req: IAuthReq, res: Response, next: NextFunction) => {
@@ -21,7 +25,7 @@ export default (req: IAuthReq, res: Response, next: NextFunction) => {
   console.log('Authorization header:', authorization);
 
   if (!authorization || !authorization.startsWith('Bearer ')) {
-    next(new UnauthorizedError('Необходимо авторизоваться'));
+    return next(new UnauthorizedError('Необходимо авторизоваться'));
   }
 
   const token = authorization?.replace('Bearer ', '');
@@ -29,14 +33,18 @@ export default (req: IAuthReq, res: Response, next: NextFunction) => {
 
   try {
     if (token) {
-      payload = jwt.verify(token, DEFAULT_KEY);
+      payload = verify(token, DEFAULT_KEY) as IUserPayload;
+      // Убедитесь, что payload действительно содержит _id
+      if (!payload || !payload._id) {
+        throw new Error('Некорректный payload токена');
+      }
     }
   } catch (err) {
     next(new UnauthorizedError('Некорректный токен'));
     return;
   }
 
-  req.user = payload as { _id: JwtPayload };
+  req.user = payload;
 
   next();
 };

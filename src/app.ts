@@ -8,6 +8,8 @@ import cardRoutes from './routes/card';
 import { createUser, login } from './controllers/user';
 import authMiddleware from './middlewares/auth';
 import { constants } from 'http2';
+import { NotFoundError } from './errors/errors';
+import { ValidationError } from './errors/errors';
 
 const {
   HTTP_STATUS_BAD_REQUEST,
@@ -68,20 +70,22 @@ app.get('/', (req, res) => {
   res.send('Hello World!');
 });
 
-app.use((req, res) => {
+app.use((req, res, next) => {
   console.log(`404 Error: ${req.method} ${req.originalUrl}`);
-  res.status(404).send('404 Not Found: The requested resource was not found on this server.');
+  next(new NotFoundError('Ресурс не найден'));
 });
 
 app.use((err: any, req: CustomRequest, res: express.Response, next: express.NextFunction) => {
   errorLogger.error(`Error: ${err.message}`);
 
-  if (err instanceof mongoose.Error.ValidationError) {
+  if (err instanceof NotFoundError) {
     res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Переданы некорректные данные.' });
   } else if (err.code === 11000) {
     res.status(HTTP_STATUS_CONFLICT).send({ message: 'Пользователь с таким email уже существует.' });
   } else if (err.name === 'UnauthorizedError') { // Пример проверки ошибки авторизации
     res.status(HTTP_STATUS_UNAUTHORIZED).send({ message: 'Некорректный токен.' });
+  } else if (err instanceof ValidationError) {
+    res.status(400).send({ errors: err.errors });
   } else {
     res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла неизвестная ошибка' });
   }

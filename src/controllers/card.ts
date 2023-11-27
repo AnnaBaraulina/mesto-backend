@@ -1,8 +1,10 @@
 import mongoose from 'mongoose';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { constants } from 'http2';
 import type { CustomRequest } from '../types/types';
 import Card from '../models/card';
+import { validationResult } from 'express-validator';
+import { ValidationError } from '../errors/errors';
 
 const {
   HTTP_STATUS_CREATED,
@@ -22,12 +24,14 @@ const getCards = async (req: Request, res: Response) => {
   }
 };
 
-const createCard = async (req: CustomRequest, res: Response) => {
+const createCard = async (req: CustomRequest, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(new ValidationError(errors.array()));
+  }
+
   const { name, link } = req.body;
   const owner = req.user?._id;
-
-  console.log('req.body:', req.body);
-  console.log('req.user?._id:', owner);
 
   if (!owner) {
     return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Ошибка авторизации: отсутствует идентификатор пользователя.' });
@@ -66,7 +70,11 @@ const deleteCard = async (req: CustomRequest, res: Response) => {
     res.status(HTTP_STATUS_INTERNAL_SERVER_ERROR).send({ message: 'Произошла ошибка при удалении карточки' });
   }
 };
-const likeCard = async (req: CustomRequest, res: Response) => {
+const likeCard = async (req: CustomRequest, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(new ValidationError(errors.array()));
+  }
   /* eslint consistent-return: "off" */
   try {
     const card = await Card.findByIdAndUpdate(
@@ -87,7 +95,11 @@ const likeCard = async (req: CustomRequest, res: Response) => {
   }
 };
 
-const dislikeCard = async (req: CustomRequest, res: Response) => {
+const dislikeCard = async (req: CustomRequest, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(new ValidationError(errors.array()));
+  }
   /* eslint consistent-return: "off" */
   try {
     const card = await Card.findByIdAndUpdate(

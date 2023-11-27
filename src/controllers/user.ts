@@ -6,14 +6,14 @@ import User from '../models/user';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { DEFAULT_KEY } from '../config';
+import { NotFoundError, AuthenticationError } from '../errors/errors';
+import { IUserPayload } from '../middlewares/auth';
+import { validationResult } from 'express-validator';
+import { ValidationError } from '../errors/errors';
 
 
 const {
-  HTTP_STATUS_CREATED,
-  HTTP_STATUS_BAD_REQUEST,
-  HTTP_STATUS_NOT_FOUND,
-  HTTP_STATUS_INTERNAL_SERVER_ERROR,
-  HTTP_STATUS_CONFLICT
+  HTTP_STATUS_CREATED
 } = constants;
 
 const getUsers = async (req: Request, res: Response, next: NextFunction) => {
@@ -29,10 +29,7 @@ const getUserById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) {
-
-      const notFoundError = new Error('Пользователь по указанному _id не найден.');
-      (notFoundError as any).status = HTTP_STATUS_NOT_FOUND;
-      return next(notFoundError);
+      return next(new NotFoundError('Пользователь по указанному _id не найден.'));
     }
     const { name, about, avatar, _id } = user;
     res.send({ name, about, avatar, _id });
@@ -76,13 +73,13 @@ export const login = (req: Request, res: Response, next: NextFunction) => {
   User.findOne({ email }).select('+password')
     .then(user => {
       if (!user) {
-        return res.status(401).send({ message: 'Неправильные почта или пароль' });
+        throw new AuthenticationError('Неправильные почта или пароль');
       }
 
       bcrypt.compare(password, user.password)
         .then(matched => {
           if (!matched) {
-            return res.status(401).send({ message: 'Неправильные почта или пароль' });
+            throw new AuthenticationError('Неправильные почта или пароль');
           }
 
           const token = jwt.sign({ _id: user._id }, DEFAULT_KEY, { expiresIn: '7d' });
@@ -95,13 +92,11 @@ export const login = (req: Request, res: Response, next: NextFunction) => {
 
 const getCurrentUser = async (req: CustomRequest, res: Response, next: NextFunction) => {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(HTTP_STATUS_BAD_REQUEST).send({ message: 'Не удалось идентифицировать пользователя.' });
-    }
+   const userPayload = req.user as IUserPayload;
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(userPayload._id);
     if (!user) {
-      return res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Пользователь не найден.' });
+      return next(new NotFoundError('Пользователь не найден.'));
     }
 
     const { name, email, about, avatar, _id } = user;
@@ -113,11 +108,15 @@ const getCurrentUser = async (req: CustomRequest, res: Response, next: NextFunct
 
 
 const updateUser = async (req: CustomRequest, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(new ValidationError(errors.array()));
+  }
   try {
     const userId = req.user?._id;
     const user = await User.findByIdAndUpdate(userId, req.body, { new: true, runValidators: true });
     if (!user) {
-      return res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Пользователь с указанным _id не найден.' });
+      return next(new NotFoundError('Пользователь с указанным _id не найден.'));
     }
     res.send(user);
   } catch (error) {
@@ -125,11 +124,15 @@ const updateUser = async (req: CustomRequest, res: Response, next: NextFunction)
   }
 };
 const updateAvatar = async (req: CustomRequest, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return next(new ValidationError(errors.array()));
+  }
   try {
     const userId = req.user?._id;
     const user = await User.findByIdAndUpdate(userId, { avatar: req.body.avatar }, { new: true, runValidators: true });
     if (!user) {
-      return res.status(HTTP_STATUS_NOT_FOUND).send({ message: 'Пользователь не найден' });
+      return next(new NotFoundError('Пользователь с указанным _id не найден.'));
     }
     res.send(user);
   } catch (error) {
