@@ -34,17 +34,12 @@ export default (req: IAuthReq, res: Response, next: NextFunction) => {
   try {
     if (token) {
       payload = verify(token, DEFAULT_KEY) as IUserPayload;
-      // Убедитесь, что payload действительно содержит _id
-      if (!payload || !payload._id) {
-        throw new Error('Некорректный payload токена');
+      req.user = payload;
       }
-    }
   } catch (err) {
     next(new UnauthorizedError('Некорректный токен'));
     return;
   }
-
-  req.user = payload;
 
   next();
 };

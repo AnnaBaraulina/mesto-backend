@@ -1,6 +1,6 @@
 export const DEFAULT_KEY = 'mesto-project-api-key';
-export const emailRegExp: RegExp = /^(([^<>()\[\]\.,;:\s@\”]+(\.[^<>()\[\]\.,;:\s@\”]+)*)|(\”.+\”))@(([^<>()[\]\.,;:\s@\”]+\.)+[^<>()[\]\.,;:\s@\”]{2,})$/;
-export const urlRegExp: RegExp = /[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)?/gi;
+export const emailRegExp: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const urlRegExp: RegExp = /^(https?:\/\/)?(www\.)?[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=-]+(#)?$/;
 
 
 export const defaultUser = {

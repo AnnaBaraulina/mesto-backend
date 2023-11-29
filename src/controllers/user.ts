@@ -108,10 +108,6 @@ const getCurrentUser = async (req: CustomRequest, res: Response, next: NextFunct
 
 
 const updateUser = async (req: CustomRequest, res: Response, next: NextFunction) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return next(new ValidationError(errors.array()));
-  }
   try {
     const userId = req.user?._id;
     const user = await User.findByIdAndUpdate(userId, req.body, { new: true, runValidators: true });
@@ -124,10 +120,6 @@ const updateUser = async (req: CustomRequest, res: Response, next: NextFunction)
   }
 };
 const updateAvatar = async (req: CustomRequest, res: Response, next: NextFunction) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return next(new ValidationError(errors.array()));
-  }
   try {
     const userId = req.user?._id;
     const user = await User.findByIdAndUpdate(userId, { avatar: req.body.avatar }, { new: true, runValidators: true });
