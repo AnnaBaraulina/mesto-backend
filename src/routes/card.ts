@@ -10,16 +10,23 @@ const createCardValidation = [
   body('link').isURL().withMessage('Ссылка некорректна'),
 ];
 
-const cardIdValidation = [
-  param('cardId').isMongoId().withMessage('Некорректный ID карточки'),
-];
-
 const router = express.Router();
 
 router.get('/', getCards);
 router.post('/', createCardValidation, createCard);
-router.delete('/:cardId', cardIdValidation, deleteCard);
-router.put('/:cardId/likes', cardIdValidation, likeCard);
-router.delete('/:cardId/likes', cardIdValidation, dislikeCard);
+router.delete('/cards/:cardId',
+  body('cardId')
+    .matches(/^[0-9a-fA-F]{24}$/, 'i')
+    .withMessage('Неверный формат идентификатора карточки'),
+  deleteCard
+);
+router.put('/:cardId/likes',
+  param('cardId').matches(/^[0-9a-fA-F]{24}$/, 'i').withMessage('Неверный формат идентификатора карточки'),
+  likeCard
+);
+router.delete('/:cardId/likes',
+  param('cardId').matches(/^[0-9a-fA-F]{24}$/, 'i').withMessage('Неверный формат идентификатора карточки'),
+  dislikeCard
+);
 
 export default router;

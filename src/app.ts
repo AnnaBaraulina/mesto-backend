@@ -70,7 +70,7 @@ app.get('/', (req, res) => {
   res.send('Hello World!');
 });
 app.use((req, res, next) => {
-  console.log(`404 Error: ${req.method} ${req.originalUrl}`);
+  console.info(`404 Error: ${req.method} ${req.originalUrl}`);
   next(new NotFoundError('Ресурс не найден'));
 });
 
